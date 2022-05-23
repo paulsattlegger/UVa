@@ -5,26 +5,25 @@ import java.util.*;
 
 class Main {
     static final int NULL = 0;
-    static final Node[] bst = new Node[100_000];
+    static final int MAX_CANVAS_SIZE = 200;
     static final NavigableMap<Integer, Node> balanced = new TreeMap<>();
-    static final char[][] canvas = new char[200][200];
-    static int size, breadth, r, c, rI, cI;
-
-    static void draw(int y, int x, char ch) {
-        // draw conditionally, i.e. if in out[] "window"
-        y -= r - 1;
-        x -= c - 1;
-        if (x < 0 || y < 0 || x > 199 || y > 199) return;
-        canvas[y][x] = ch;
-    }
+    static Node[] bst;
+    static Fragment[] fragments;
+    static int size, breadth;
 
     static void draw() {
         breadth = 0;
-        for (char[] line : canvas) Arrays.fill(line, ' ');
         draw(0, 0);
     }
 
+    static void drawAll(int y, int x, char ch) {
+        for (Fragment f : fragments) {
+            f.draw(y, x, ch);
+        }
+    }
+
     static void draw(int index, int depth) {
+        // in-order traversal to add column to node
         if (bst[index].left != NULL) {
             draw(bst[index].left, depth + 2);
         }
@@ -32,32 +31,38 @@ class Main {
         if (bst[index].right != NULL) {
             draw(bst[index].right, depth + 2);
         }
+        // in-order traversal to draw +---
+        //                            |
         if (bst[index].left != NULL) {
-            draw(depth, bst[bst[index].left].column, '+');
-            draw(depth + 1, bst[bst[index].left].column, '|');
+            drawAll(depth, bst[bst[index].left].column, '+');
+            drawAll(depth + 1, bst[bst[index].left].column, '|');
             for (int i = bst[bst[index].left].column + 1; i < bst[index].column; i++) {
-                draw(depth, i, '-');
+                drawAll(depth, i, '-');
             }
         }
-        draw(depth, bst[index].column, 'o');
+        drawAll(depth, bst[index].column, 'o');
+        // in-order traversal to draw ---+
+        //                               |
         if (bst[index].right != NULL) {
             for (int i = bst[bst[index].right].column - 1; bst[index].column < i; i--) {
-                draw(depth, i, '-');
+                drawAll(depth, i, '-');
             }
-            draw(depth, bst[bst[index].right].column, '+');
-            draw(depth + 1, bst[bst[index].right].column, '|');
+            drawAll(depth, bst[bst[index].right].column, '+');
+            drawAll(depth + 1, bst[bst[index].right].column, '|');
         }
     }
 
     static void insertNode(int key) {
         if (size > 0) {
             // either lowerEntry or higherEntry yields the key's parent node
-            Map.Entry<Integer, Node> node = balanced.lowerEntry(key);
-            boolean added = false;
-            if (node != null) added = insertNode(key, node.getValue());
-            if (!added) {
-                node = balanced.higherEntry(key);
-                insertNode(key, node.getValue());
+            Map.Entry<Integer, Node> parent = balanced.lowerEntry(key);
+
+            // connect parent node to (to be inserted) child node
+            if (parent != null && parent.getValue().right == NULL) {
+                parent.getValue().right = size;
+            } else {
+                parent = balanced.higherEntry(key);
+                parent.getValue().left = size;
             }
         }
         // insert child node
@@ -66,61 +71,35 @@ class Main {
         size++;
     }
 
-    static boolean insertNode(int key, Node parent) {
-        // connect parent node to (to be inserted) child node
-        if (key < parent.key && parent.left == NULL) {
-            parent.left = size;
-            return true;
-        } else if (parent.right == NULL) {
-            parent.right = size;
-            return true;
-        }
-        return false;
-    }
-
-    static void init() {
-        Arrays.fill(bst, null);
+    static void init(int n) {
+        bst = new Node[n];
         balanced.clear();
         size = 0;
     }
 
-    static void print() {
-        for (int i = 0; i < rI; i++) {
-            boolean print = false;
-            StringBuilder line = new StringBuilder(cI);
-            for (int j = 0; j < cI; j++) {
-                if (canvas[i][j] != ' ') print = true;
-                line.append(canvas[i][j]);
-            }
-            if (print) {
-                System.out.println(line);
-            }
-        }
-        System.out.println();
-    }
 
     public static void main(String[] args) throws Exception {
-        Scanner sc = new Scanner(System.in);
-        int t = sc.nextInt();
-        for (int i = 1; i <= t; i++) {
-            init();
-            System.out.println("Case #" + i + ":");
-            int n = sc.nextInt();
-            for (int j = 1; j <= n; j++) {
-                int v = sc.nextInt();
-                insertNode(v);
-            }
-            int m = sc.nextInt();
-            for (int j = 1; j <= m; j++) {
-                r = sc.nextInt();
-                c = sc.nextInt();
-                rI = sc.nextInt();
-                cI = sc.nextInt();
+        try (Scanner sc = new Scanner(System.in)) {
+            int t = sc.nextInt();
+            for (int i = 1; i <= t; i++) {
+                System.out.println("Case #" + i + ":");
+                int n = sc.nextInt();
+                init(n);
+                for (int j = 0; j < n; j++) {
+                    int v = sc.nextInt();
+                    insertNode(v);
+                }
+                int m = sc.nextInt();
+                fragments = new Fragment[m];
+                for (int j = 0; j < m; j++) {
+                    fragments[j] = new Fragment(new char[MAX_CANVAS_SIZE][MAX_CANVAS_SIZE], sc.nextInt(), sc.nextInt(), sc.nextInt(), sc.nextInt());
+                }
                 draw();
-                print();
+                for (Fragment f : fragments) {
+                    f.print();
+                }
             }
         }
-        sc.close();
     }
 
     static class Node {
@@ -128,6 +107,47 @@ class Main {
 
         Node(int key) {
             this.key = key;
+        }
+    }
+
+    static class Fragment {
+        final char[][] canvas;
+        final int r, c, rI, cI;
+
+        Fragment(char[][] canvas, int r, int c, int rI, int cI) {
+            this.canvas = canvas;
+            this.r = r;
+            this.c = c;
+            this.rI = rI;
+            this.cI = cI;
+        }
+
+        void draw(int y, int x, char ch) {
+            // draw conditionally, i.e. if in canvas "window"
+            y -= r - 1;
+            x -= c - 1;
+            if (x < 0 || y < 0 || x > MAX_CANVAS_SIZE - 1 || y > MAX_CANVAS_SIZE - 1) return;
+            canvas[y][x] = ch;
+        }
+
+
+        void print() {
+            for (int i = 0; i < rI; i++) {
+                boolean print = false;
+                StringBuilder line = new StringBuilder(cI);
+                for (int j = 0; j < cI; j++) {
+                    if (canvas[i][j] == 0) {
+                        line.append(' ');
+                    } else {
+                        print = true;
+                        line.append(canvas[i][j]);
+                    }
+                }
+                if (print) {
+                    System.out.println(line);
+                }
+            }
+            System.out.println();
         }
     }
 
